@@ -29,3 +29,4 @@ There severe other well known limitations, beside the others mentioned in the pr
 - only agents living in the same thread and process are supported
 - no parallel execution when possible (e.g decoupled sub-graphs of CAs)
 - no control over the state transitioning
+- no dynamic reconfiguration
