@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace ComputationalAgentFramework.Utils
 {
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class ConsumesFrom: Attribute
     {
         public Type Producer { get; }

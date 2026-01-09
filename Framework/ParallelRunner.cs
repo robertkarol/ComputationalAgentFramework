@@ -65,7 +65,7 @@ namespace ComputationalAgentFramework.Framework
         }
 
         private IEnumerable<TopologicalSort.Item> GetAgentExecutionOrder()
-            => TopologicalSort.Sort(GetItems(), x => x.Dependencies, new TopologicalSort.ItemEqualityComparer()).Reverse();
+            => TopologicalSort.Sort(GetItems(), x => x.Dependencies, new TopologicalSort.ItemEqualityComparer());
 
         private void BuildDependencyGraph()
         {
@@ -115,13 +115,27 @@ namespace ComputationalAgentFramework.Framework
                 Parallel.ForEach(readyAgents, agent =>
                 {
                     var stateAgent = _agents[agent.Name] as ComputationalAgent;
-                    var dataSourceAgent = GetDependantAgent(stateAgent) as ComputationalAgent;
 
-                    if (dataSourceAgent != null)
+                    if (stateAgent is MultiSourceComputationalAgent multiSourceAgent)
                     {
-                        if (agentData.TryGetValue(dataSourceAgent.ToString(), out var data))
+                        var dataSources = GetDependantAgents(multiSourceAgent);
+                        foreach (var source in dataSources)
                         {
-                            stateAgent.ToConsumeData = data;
+                            if (agentData.TryGetValue(source.ToString(), out var data))
+                            {
+                                multiSourceAgent.ToConsumeDataSources[source.GetType()] = data;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var dataSourceAgent = GetDependantAgent(stateAgent) as ComputationalAgent;
+                        if (dataSourceAgent != null)
+                        {
+                            if (agentData.TryGetValue(dataSourceAgent.ToString(), out var data))
+                            {
+                                stateAgent.ToConsumeData = data;
+                            }
                         }
                     }
 
@@ -149,7 +163,7 @@ namespace ComputationalAgentFramework.Framework
         {
             var agentItems = _agents.Values.Select(a => new TopologicalSort.Item(a.ToString())).ToDictionary(i => i.Name);
             agentItems.Values.ToList().ForEach(
-                agentItem => agentItem.Dependencies = GetDependingAgents(_agents[agentItem.Name]).Select(a => agentItems[a.ToString()]).ToArray());
+                agentItem => agentItem.Dependencies = GetDependantAgents(_agents[agentItem.Name]).Select(a => agentItems[a.ToString()]).ToArray());
             return agentItems.Values;
         }
 
@@ -159,12 +173,25 @@ namespace ComputationalAgentFramework.Framework
             return _agents.Values.Where(a => a.GetType() == attribute?.Producer).FirstOrDefault();
         }
 
+        private IEnumerable<IComputationalAgent> GetDependantAgents(IStateMachineAgent agent)
+        {
+            var attributes = agent.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).Cast<ConsumesFrom>();
+            foreach (var attribute in attributes)
+            {
+                var producer = _agents.Values.FirstOrDefault(a => a.GetType() == attribute.Producer);
+                if (producer != null)
+                {
+                    yield return producer;
+                }
+            }
+        }
+
         private IEnumerable<IComputationalAgent> GetDependingAgents(IStateMachineAgent agent)
         {
             foreach (var agentValue in _agents.Values)
             {
-                var attribute = agentValue.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).FirstOrDefault() as ConsumesFrom;
-                if (attribute?.Producer == agent.GetType())
+                var attributes = agentValue.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).Cast<ConsumesFrom>();
+                if (attributes.Any(attr => attr.Producer == agent.GetType()))
                 {
                     yield return agentValue;
                 }

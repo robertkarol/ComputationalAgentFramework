@@ -3,7 +3,7 @@ using ComputationalAgentFramework.Agent;
 using ComputationalAgentFramework.Utils;
 using System;
 
-namespace Examples.Agents
+namespace Examples.Agents.Simple
 {
     //[ConsumesFrom(typeof(Agent3))] // Uncomment this for a cyclic dependency
     public class Agent1 : ComputationalAgent<int, int>
