@@ -1,7 +1,7 @@
 ﻿using ComputationalAgentFramework;
 using ComputationalAgentFramework.Framework;
 using ComputationalAgentFramework.Framework.Scheduler;
-using Examples.Agents;
+using Examples.Agents.Simple;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +26,9 @@ namespace Examples
 
             // Parallel Runner comparison demo
             ParallelRunnerDemo.CompareRunners();
+
+            // Multi-source demo
+            MultiSourceDemo.RunDemo();
         }
     }
 }

@@ -61,7 +61,7 @@ namespace ComputationalAgentFramework.Framework
         }
 
         private IEnumerable<TopologicalSort.Item> GetAgentExecutionOrder()
-            => TopologicalSort.Sort(GetItems(), x => x.Dependencies, new TopologicalSort.ItemEqualityComparer()).Reverse();
+            => TopologicalSort.Sort(GetItems(), x => x.Dependencies, new TopologicalSort.ItemEqualityComparer());
 
         private void InitializeAgents()
         {
@@ -84,8 +84,25 @@ namespace ComputationalAgentFramework.Framework
                     continue;
                 }
                 var stateAgent = _agents[agent.Name] as ComputationalAgent;
-                var dataSourceAgent = GetDependantAgent(stateAgent) as ComputationalAgent;
-                stateAgent.ToConsumeData = dataSourceAgent?.ProducedData;
+                
+                if (stateAgent is MultiSourceComputationalAgent multiSourceAgent)
+                {
+                    var dataSources = GetDependantAgents(multiSourceAgent);
+                    foreach (var source in dataSources)
+                    {
+                        var sourceAgent = source as ComputationalAgent;
+                        if (sourceAgent?.ProducedData != null)
+                        {
+                            multiSourceAgent.ToConsumeDataSources[source.GetType()] = sourceAgent.ProducedData;
+                        }
+                    }
+                }
+                else
+                {
+                    var dataSourceAgent = GetDependantAgent(stateAgent) as ComputationalAgent;
+                    stateAgent.ToConsumeData = dataSourceAgent?.ProducedData;
+                }
+                
                 stateAgent.Execute();
             }
         }
@@ -106,7 +123,7 @@ namespace ComputationalAgentFramework.Framework
         {
             var agentItems = _agents.Values.Select(a => new TopologicalSort.Item(a.ToString())).ToDictionary(i => i.Name);
             agentItems.Values.ToList().ForEach(
-                agentItem => agentItem.Dependencies = GetDependingAgents(_agents[agentItem.Name]).Select(a => agentItems[a.ToString()]).ToArray());
+                agentItem => agentItem.Dependencies = GetDependantAgents(_agents[agentItem.Name]).Select(a => agentItems[a.ToString()]).ToArray());
             return agentItems.Values;
         }
 
@@ -116,12 +133,25 @@ namespace ComputationalAgentFramework.Framework
             return _agents.Values.Where(a => a.GetType() == attribute?.Producer).FirstOrDefault();
         }
 
+        private IEnumerable<IComputationalAgent> GetDependantAgents(IStateMachineAgent agent)
+        {
+            var attributes = agent.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).Cast<ConsumesFrom>();
+            foreach (var attribute in attributes)
+            {
+                var producer = _agents.Values.FirstOrDefault(a => a.GetType() == attribute.Producer);
+                if (producer != null)
+                {
+                    yield return producer;
+                }
+            }
+        }
+
         private IEnumerable<IComputationalAgent> GetDependingAgents(IStateMachineAgent agent)
         {
             foreach(var agentValue in _agents.Values)
             {
-                var attribute = agentValue.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).FirstOrDefault() as ConsumesFrom;
-                if (attribute?.Producer == agent.GetType())
+                var attributes = agentValue.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).Cast<ConsumesFrom>();
+                if (attributes.Any(attr => attr.Producer == agent.GetType()))
                 {
                     yield return agentValue;
                 }

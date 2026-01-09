@@ -1,8 +1,8 @@
-# CAF
+# Computational Agent Framework (CAF)
 
 ## Overview
 
-__Computational Agent Framework (CAF)__ is a C# framework for developing computational entities that have a state machine architecture for the individual computation each performs, and externally behave in a dataflow fashion. In other words, you can write programs that are a bunch of entities communicating with each other in a well-determined manner.
+__Computational Agent Framework (CAF)__ is a C# framework for developing computational entities that have a state machine architecture for the individual computation each performs, and externally behave in a dataflow fashion. You can write programs that are a bunch of entities communicating with each other in a well-determined manner.
 
 ## Requirements
 
@@ -14,138 +14,247 @@ __Computational Agent Framework (CAF)__ is a C# framework for developing computa
 
 ### Prerequisites
 
-Ensure you have the .NET 10.0 SDK installed:
-
-```bash
-dotnet --version
-# Should show 10.0.x or later
-```
-
-If you need to install it, download from: https://dotnet.microsoft.com/download/dotnet/10.0
+Ensure you have the .NET 10.0 SDK installed. If you need to install it, download from: https://dotnet.microsoft.com/download/dotnet/10.0
 
 ### Get the Code Working
 
 This repository contains a Visual Studio solution with two projects:
-- a project containing the proposed framework
-- a project providing basic examples of how to write programs that use the framework
+- A project containing the framework
+- A project providing examples of how to use the framework
 
-Clone this repository and build the solution:
+Clone and build:
 
 ```bash
 git clone https://github.com/robertkarol/ComputationalAgentFramework
 cd ComputationalAgentFramework
 dotnet build
-```
-
-### Running the Examples
-
-```bash
 dotnet run --project Examples\Examples.csproj
 ```
 
-## Architecture
+## Core Concepts
 
 ### Computational Agents
 
-A __Computational Agent (CA)__ is the centric concept of this framework. It is a state machine that contains three states: _Initialize_, _Execute_, and _Finish_. _Execute_ is the heart of our CA, while the other two states are preparing/cleaning-up things for a successful execution. Besides having these states, a CA must consume and produce data (of a specific type), phases which take place implicitly during the execution. All the previous logic is executed by the framework, while the user only needs to provide the actual code that will get executed as part of handling each phase encountered. Just have a class inheriting from our abstract `ComputationalAgent` and implement the required methods.
+A __Computational Agent (CA)__ is a state machine with three states:
+- **Initialize**: Setup and preparation
+- **Execute**: Main computation (the heart of the agent)
+- **Finish**: Cleanup and finalization
+
+Agents consume and produce data of specific types. The framework handles the execution lifecycle - you just implement the logic for each phase by inheriting from `ComputationalAgent` and implementing the required methods.
 
 ### Agent Communication
 
-A program is comprised of several CAs that talk to each other. For now, the framework supports only single source data consumption, but produced data can be consumed by multiple CAs. How is the link between agents made? The framework provides a very simple mechanism based on C#'s attributes. For example, if you have three agents: `Agent1`, `Agent2`, and `Agent3`, and data flows in the mentioned order, then `Agent2` should get data from `Agent1`. That is simply accomplished by having `Agent2` attributed with `[ConsumesFrom(typeof(Agent1))]`. An agent must consume data from agents producing the same data type it consumes, because otherwise a runtime error will be encountered.
+#### Single-Source Consumption
 
-### Execution
+For agents consuming from a single source:
+- Inherit from `ComputationalAgent<TConsumed, TProduced>`
+- Add `[ConsumesFrom(typeof(ProducerAgent))]` attribute
+- Implement `Consume(TConsumed data)` method
 
-Once you define CAs and link them, instantiate the agent classes, add them to a `Runner` (or `ParallelRunner`), and run them using a scheduling strategy. For now, only one instance of each concrete agent definition is allowed.
+The framework links agents using attributes. For example, if Agent2 needs data from Agent1, simply attribute it with `[ConsumesFrom(typeof(Agent1))]`.
 
-From the scheduling perspective, the only two strategies supported are single runs (`Schedule.RunOnce`) and forever runs (`Schedule.RunIndefinitely`), which control the execution of the whole system: we either run once and stop the program or we keep executing all agents repeatedly.
+#### Multi-Source Consumption
 
-Agent execution happens in a dataflow manner. A topological sort algorithm provides the dataflow capabilities by finding an execution order where when an agent executes, it has all the necessary data. This implies that we don't allow cycles in our CA linking.
+For agents consuming from multiple sources:
+- Inherit from `MultiSourceComputationalAgent<TProduced>`
+- Add multiple `[ConsumesFrom(typeof(ProducerA))]` attributes
+- Implement `ConsumeMultiple(IDictionary<Type, object> data)` method
+- Access data by producer type from the dictionary
 
-## Runner vs ParallelRunner
+**Benefits:**
+- Consume from multiple independent sources
+- Sources execute in parallel (with ParallelRunner)
+- Type-safe data access via dictionary
+- Full backward compatibility
 
-The framework provides two execution engines:
+### Execution Model
+
+Agents are added to a `Runner` or `ParallelRunner` and executed using a scheduling strategy:
+- `Schedule.RunOnce`: Execute all agents once
+- `Schedule.RunIndefinitely`: Execute agents repeatedly
+
+Agent execution follows a dataflow pattern determined by topological sorting, ensuring each agent executes only after its dependencies have produced their data. Cycles in agent dependencies are not allowed.
+
+## Execution Engines
 
 ### Runner (Sequential Execution)
 
-The original `Runner` executes agents sequentially in topological order:
-- **Execution Model**: Single-threaded, sequential
-- **Best For**: Debugging, deterministic execution, linear pipelines
-- **Thread Safety**: Single-threaded, inherently thread-safe
-- **Performance**: Agents execute one at a time
+Executes agents sequentially in topological order.
+
+**Characteristics:**
+- Single-threaded, sequential execution
+- Deterministic execution order
+- Inherently thread-safe
+- Simple to debug
+
+**Best For:**
+- Debugging
+- Linear pipelines
+- When deterministic behavior is required
+- Simple applications
 
 ### ParallelRunner (Parallel Execution)
 
-The `ParallelRunner` executes agents in parallel while respecting dependencies:
-- **Execution Model**: Multi-threaded, wave-based parallel execution
-- **Best For**: Performance-critical workloads, agent graphs with independent branches
-- **Thread Safety**: Uses `ConcurrentDictionary` for thread-safe data sharing
-- **Performance**: Independent agents execute simultaneously
+Executes agents in parallel while respecting dependencies using a wave-based approach.
+
+**Characteristics:**
+- Multi-threaded, wave-based parallel execution
+- Non-deterministic order within waves
+- Uses `ConcurrentDictionary` for thread-safe data sharing
+- Maximizes CPU core utilization
+
+**Best For:**
+- Performance-critical workloads
+- Agent graphs with independent branches
+- CPU or I/O intensive agents
+- Production environments
 
 #### Wave-Based Execution
 
-ParallelRunner executes agents in parallel "waves":
-- **Wave 1**: All agents with no dependencies execute in parallel
-- **Wave 2**: All agents whose dependencies completed in Wave 1 execute in parallel
-- **Wave N**: Continues until all agents have executed
+Agents are executed in parallel waves:
+- **Wave 1**: All agents with no dependencies
+- **Wave 2**: All agents whose dependencies completed in Wave 1
+- **Wave N**: Continues until all agents executed
 
-#### When to Use Each Runner
-
-**Use ParallelRunner When:**
-- You have independent agent branches
-- Performance is critical
-- Agents are CPU or I/O intensive
-- You want to leverage multi-core processors
-
-**Use Runner When:**
-- You need deterministic sequential execution
-- Debugging and want predictable order
-- Agents have side effects requiring strict ordering
-- The agent graph is linear (no parallelism opportunity)
-
-#### Performance Benefits
-
-**Example Scenario:**
-Given an agent graph where Agent1 has no dependencies, and both Agent2 and Agent3 depend on Agent1 but not each other:
-
-- **Sequential Runner**: 3 seconds (Agent1=1s, Agent2=1s, Agent3=1s)
-- **Parallel Runner**: 2 seconds (Wave 1: Agent1=1s, Wave 2: Agent2+Agent3 parallel=1s)
-- **Performance improvement**: 33% faster
-
-**Loose Agents:**
-Agents with no dependencies and no dependents (loose agents) will execute in the first wave alongside other independent agents, maximizing parallelism.
+Independent agents (no dependencies or dependents) execute in the first wave alongside other independent agents, maximizing parallelism.
 
 #### API Compatibility
 
-Both runners have identical APIs - migration is as simple as:
+Both runners have identical APIs. Migration is seamless:
+- `var runner = new Runner();` -> `var runner = new ParallelRunner();`
+- All other methods (`AddAgent()`, `Run()`) remain the same
 
-- Before: `var runner = new Runner();`
-- After: `var runner = new ParallelRunner();`
-
-All other methods (`AddAgent()`, `Run()`) remain the same.
-
-## Performance Metrics
+## Performance Characteristics
 
 ### Time Complexity by Graph Type
 
 | Graph Type | Runner | ParallelRunner | Speedup |
 |------------|--------|----------------|---------|
 | Linear (n agents) | O(n) | O(n) | 1x |
-| Full fan-out (1?n) | O(n+1) | O(2) | ~n/2x |
+| Full fan-out (1->n) | O(n+1) | O(2) | ~n/2x |
 | Balanced tree (depth d) | O(2^d - 1) | O(d) | ~2^(d-1)/d |
 
-### Execution Flow Examples
+### Execution Flow Patterns
 
-**Linear Graph: A ? B ? C**
+**Linear Graph: A -> B -> C**
 - Runner: 3 steps
 - ParallelRunner: 3 waves (same as sequential, no benefit)
 
-**Fan-Out Graph: A ? [B, C, D]**
-- Runner: 4 steps
-- ParallelRunner: 2 waves (2x faster)
+**Fan-Out Graph: A -> [B, C, D]**
+- Runner: 4 steps (sequential)
+- ParallelRunner: 2 waves (B, C, D execute in parallel)
+- **Speedup: 2x faster**
 
-**Complex DAG: A ? [B, C] ? D**
+**Complex DAG: A -> [B, C] -> D**
 - Runner: 4 steps
-- ParallelRunner: 3 waves (1.33x faster)
+- ParallelRunner: 3 waves (B and C execute in parallel)
+- **Speedup: 1.33x faster**
+
+**Multi-Source: [A, B] -> C**
+- Runner: 3 steps
+- ParallelRunner: 2 waves (A and B execute in parallel)
+- **Speedup: 1.5x faster**
+
+### Performance Benefits Example
+
+Given an agent graph where Agent1 has no dependencies, and both Agent2 and Agent3 depend on Agent1:
+- **Sequential Runner**: 3 seconds (Agent1->Agent2->Agent3)
+- **Parallel Runner**: 2 seconds (Wave 1: Agent1, Wave 2: Agent2+Agent3 parallel)
+- **Performance improvement: 33% faster**
+
+## Use Case Decision Matrix
+
+| Scenario | Recommended Runner | Reason |
+|----------|-------------------|---------|
+| Linear pipeline | Runner | No parallelism opportunity |
+| Independent branches | ParallelRunner | Maximum parallelism benefit |
+| Multi-source aggregation | ParallelRunner | Producers run in parallel |
+| Small agent count (<5) | Runner | Overhead not worth it |
+| Large agent count (>10) | ParallelRunner | Better resource utilization |
+| Development/Debugging | Runner | Easier to trace execution |
+| Production/Performance | ParallelRunner | Faster execution time |
+| CPU-intensive agents | ParallelRunner | Maximize core usage |
+| I/O-intensive agents | ParallelRunner | Overlap I/O wait times |
+| Side-effect-heavy agents | Runner | Predictable ordering |
+| Pure computation | ParallelRunner | Safe to parallelize |
+
+## Multi-Source Data Consumption
+
+### Overview
+
+Agents can consume data from multiple independent sources simultaneously, enabling powerful aggregation and data combination patterns.
+
+### When to Use Multi-Source
+
+**Use Multi-Source When:**
+- You need to aggregate data from multiple independent sources
+- Sources can be produced in parallel
+- All source data is required before processing
+- Implementing join, merge, or aggregation patterns
+
+**Use Single-Source When:**
+- You have a simple pipeline (A -> B -> C)
+- Data flows from one producer to one consumer
+- Sequential processing is needed
+- You want simpler agent implementation
+
+### Multi-Source Features
+
+**Execution Behavior:**
+- Multi-source agents depend on ALL their producers
+- Agent executes only after ALL producers complete
+
+**Sequential Runner:**
+1. All producers execute sequentially
+2. Multi-source consumer executes after all producers
+
+**Parallel Runner:**
+- Wave 1: Independent producers execute in parallel
+- Wave 2: Multi-source consumer executes after all complete
+
+### Common Multi-Source Patterns
+
+**Data Aggregation:**
+Combine data from multiple independent sources (e.g., multiple sensors).
+
+**Join Operations:**
+Perform SQL-like joins on data from different streams.
+
+**Cross-Validation:**
+Validate data from one source against another.
+
+**Feature Engineering:**
+Combine features from multiple sources for machine learning.
+
+**Event Correlation:**
+Correlate events from different monitoring sources.
+
+### Multi-Source Best Practices
+
+**DO:**
+- Use `TryGetValue` for safe dictionary access
+- Check for null values after accessing dictionary
+- Document which sources are required vs optional
+- Use multi-source for true aggregation scenarios
+- Test with both runners
+
+**DON'T:**
+- Use direct dictionary access without checks
+- Use multi-source for sequential dependencies (use single-source chain instead)
+- Assume data always exists in dictionary
+- Forget to handle missing or null data
+- Create circular dependencies
+
+### Data Access Patterns
+
+**Safe Dictionary Access:**
+Check if key exists before accessing.
+
+**With Default Values:**
+Provide fallback values for missing data.
+
+**Checking All Sources:**
+Verify all required sources provided data.
 
 ## Thread Safety
 
@@ -161,96 +270,124 @@ All other methods (`AddAgent()`, `Run()`) remain the same.
 - More complex to debug
 - Uses `ConcurrentDictionary` for synchronization
 - Thread-safe data sharing between agents
-
-## Use Case Decision Matrix
-
-| Scenario | Recommended Runner | Reason |
-|----------|-------------------|---------|
-| Linear pipeline | Runner | No parallelism opportunity |
-| Independent branches | ParallelRunner | Maximum parallelism benefit |
-| Small agent count (<5) | Runner | Overhead not worth it |
-| Large agent count (>10) | ParallelRunner | Better resource utilization |
-| Development/Debugging | Runner | Easier to trace execution |
-| Production/Performance | ParallelRunner | Faster execution time |
-| CPU-intensive agents | ParallelRunner | Maximize core usage |
-| I/O-intensive agents | ParallelRunner | Overlap I/O wait times |
-| Side-effect-heavy agents | Runner | Predictable ordering |
-| Pure computation | ParallelRunner | Safe to parallelize |
+- Agents must be thread-safe if they access shared resources
 
 ## Implementation Details
 
 ### Core Components
 
 Both runners use:
-- **Topological Sorting**: Determines agent execution order based on dependencies
-- **ConsumesFrom Attribute**: Defines data flow relationships between agents
-- **Schedule**: Controls whether agents run once or indefinitely
-- **State Machine**: Initialize ? Execute ? Finish lifecycle
+- **Topological Sorting**: Determines execution order based on dependencies
+- **ConsumesFrom Attribute**: Defines data flow relationships (supports multiple attributes)
+- **Schedule**: Controls single-run or indefinite execution
+- **State Machine**: Initialize -> Execute -> Finish lifecycle
 
 ### ParallelRunner Algorithm
 
-The ParallelRunner uses a wave-based execution model:
-
-1. **Build dependency graph** by analyzing `ConsumesFrom` attributes
-2. **Initialize all agents in parallel** (no data dependencies)
+1. **Build dependency graph** by analyzing `ConsumesFrom` attributes (including multiple)
+2. **Initialize all agents in parallel** (no data dependencies at this phase)
 3. **Execute agents in waves**:
-   - Identify agents whose dependencies are satisfied
+   - Identify agents whose ALL dependencies are satisfied
    - Execute them in parallel using `Parallel.ForEach`
-   - Store produced data in thread-safe cache
+   - Store produced data in thread-safe cache (`ConcurrentDictionary`)
    - Mark agents as completed
    - Repeat until all agents executed
-4. **Finalize all agents in parallel** (no data dependencies)
+4. **Finalize all agents in parallel** (no data dependencies at this phase)
 
-### Thread-Safe Data Sharing
+### Dependency Resolution
 
-ParallelRunner ensures thread safety through:
-- `ConcurrentDictionary` for tracking completed agents and shared data
-- Immutable dependency graph built before execution
-- No shared mutable state between agents during execution
-- TPL handles thread management automatically
+- Single-source agents: Have one dependency (their producer)
+- Multi-source agents: Have N dependencies (all their producers)
+- Topological sort ensures correct execution order
+- ParallelRunner groups agents into waves based on dependency levels
 
 ## Current Limitations
 
-Known limitations of the framework:
-- Only agents living in the same thread and process are supported (for Runner)
-- ParallelRunner requires agents to be thread-safe if they access shared resources
-- Only single source data consumption per agent
-- No control over the state transitioning
+- Only agents in the same process are supported
+- ParallelRunner requires thread-safe agents if they access shared resources
+- Multi-source agents access data by producer type (cannot distinguish multiple instances of same type)
+- No control over state transitioning
 - No dynamic reconfiguration
 - Only one instance of each concrete agent type is allowed
 - Cycles in agent linking are not allowed
 
-## Future Enhancements
-
-Potential improvements for the framework:
-- Support for multiple dependencies per agent
-- Configurable degree of parallelism in ParallelRunner
-- Performance metrics and profiling built-in
-- Cancellation token support for graceful shutdown
-- Async/await pattern for I/O-bound agents
-- Custom task scheduler support
-- Dynamic agent reconfiguration
-- Distributed execution across processes/machines
-
 ## Examples
 
 The Examples project includes:
-- **Agent1, Agent2, Agent3**: Basic demonstration of agent dependencies
-- **SlowAgent1, SlowAgent2, SlowAgent3**: Agents with simulated work for performance testing
+
+**Basic Examples:**
+- **Agent1, Agent2, Agent3**: Basic single-source agent dependencies
 - **LooseAgent**: Independent agent with no dependencies or dependents
-- **ParallelRunnerDemo**: Performance comparison between Runner and ParallelRunner
+
+**Performance Examples:**
+- **SlowAgent1, SlowAgent2, SlowAgent3**: Agents with simulated work for timing
+- **ParallelRunnerDemo**: Performance comparison between runners
+
+**Multi-Source Examples:**
+- **DataSourceA, DataSourceB**: Independent data producers
+- **MultiSourceAgent**: Demonstrates consuming from multiple sources
+- **MultiSourceDemo**: Shows multi-source execution in both runners
 
 ## Benchmarking
 
 To properly benchmark the difference between runners:
-1. Use agents with actual work (sleep or computation)
+1. Use agents with actual work (Thread.Sleep or computation)
 2. Test with graphs that have parallelism opportunities
 3. Run multiple times and average results
 4. Account for thread pool warm-up time
 5. Measure both throughput and latency
 
+## Troubleshooting
+
+### Multi-Source Agent Not Receiving Data
+- Verify all producers are added to the runner
+- Check `ConsumesFrom` attributes specify correct producer types
+- Ensure producers actually produce data (ProducedData is not null)
+
+### KeyNotFoundException When Accessing Data
+- Always use `TryGetValue` or check `ContainsKey` before accessing
+- Handle cases where data might be missing
+
+### Type Casting Errors
+- Ensure producer's TProduced type matches what you're casting to
+- Use safe casting patterns (`is`, `as`)
+
+### Agent Not Executing in Parallel
+- Multi-source agents wait for ALL producers
+- Verify producers have no dependencies between them
+- Check dependency graph structure
+
+## Future Enhancements
+
+Potential improvements:
+- Strongly-typed multi-source with generic parameters for each source
+- Optional vs required source specification
+- Support for multiple instances of same producer type
+- Configurable degree of parallelism in ParallelRunner
+- Performance metrics and profiling built-in
+- Cancellation token support
+- Async/await pattern for I/O-bound agents
+- Custom task scheduler support
+- Dynamic agent reconfiguration
+- Distributed execution across processes/machines
+
 ## Summary
 
-The Computational Agent Framework provides a simple yet powerful way to build dataflow-based applications. With the addition of `ParallelRunner`, you can now choose between deterministic sequential execution and high-performance parallel execution based on your needs. Both runners maintain API compatibility, making it easy to switch between them as your requirements evolve.
+The Computational Agent Framework provides a powerful way to build dataflow-based applications with support for:
 
-**Key Takeaway**: Use `ParallelRunner` for performance-critical production workloads with parallelizable agent graphs. Use `Runner` for simple pipelines, debugging, or when deterministic behavior is required.
+- **Single-Source Agents**: Traditional one-to-one data flow
+- **Multi-Source Agents**: Aggregate data from multiple independent producers
+- **Sequential Execution**: Deterministic, easy-to-debug execution with `Runner`
+- **Parallel Execution**: High-performance multi-core execution with `ParallelRunner`
+- **Mixed Agent Graphs**: Combine single-source and multi-source agents seamlessly
+
+Both runners maintain API compatibility and support all agent types, making it easy to evolve your application from simple pipelines to complex data aggregation graphs.
+
+### Key Takeaways
+
+- Use **Runner** for debugging, simple pipelines, and when deterministic behavior is required
+- Use **ParallelRunner** for performance-critical production workloads with parallelizable agent graphs
+- Use **Multi-Source Agents** when you need to aggregate data from multiple independent producers
+- Both runner types support both single-source and multi-source agents transparently
+- Migration between runners is seamless with identical APIs
+

@@ -81,7 +81,7 @@ namespace Examples
                 Console.WriteLine($"Time Saved:        {improvement:F1}%");
             }
             
-            Console.WriteLine("\n📝 Note: LooseAgent has no dependencies and no dependents.");
+            Console.WriteLine("\nNote: LooseAgent has no dependencies and no dependents.");
             Console.WriteLine("   It runs in Wave 1 alongside SlowAgent1 in ParallelRunner!");
             Console.WriteLine("========================================\n");
         }
