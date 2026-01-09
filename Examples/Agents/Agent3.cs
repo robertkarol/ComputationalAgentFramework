@@ -3,7 +3,7 @@ using ComputationalAgentFramework.Agent;
 using ComputationalAgentFramework.Utils;
 using System;
 
-namespace Examples
+namespace Examples.Agents
 {
     [ConsumesFrom(typeof(Agent2))]
     public class Agent3 : ComputationalAgent<int, int>
