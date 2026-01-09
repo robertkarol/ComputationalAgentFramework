@@ -4,15 +4,44 @@
 
 __Computational Agent Framework (CAF)__ is a C# framework for developing computational entities that have a state machine architecture for the individual computation each performs, and externally behave in a dataflow fashion. In other words, you can write programs that are supposed to be a bunch of entities communicating with eachother in a well-determined manner.
 
+## Requirements
+
+- **.NET 10.0 SDK** or later
+- **Visual Studio 2022 (17.12+)** or any compatible IDE/editor
+- **Git** for source control
+
 ## Getting started
+
+### Prerequisites
+
+Ensure you have the .NET 10.0 SDK installed:
+
+```bash
+dotnet --version
+# Should show 10.0.x or later
+```
+
+If you need to install it, download from: https://dotnet.microsoft.com/download/dotnet/10.0
 
 ### Get the code working
 
-This repostiory contains a Visual Studio solution with two projects:
+This repository contains a Visual Studio solution with two projects:
 - a project containing the proposed framework
 - a project providing basic examples of how to write programs that use the framework
 
-Clone this repository and simply build the solution.
+Clone this repository and build the solution:
+
+```bash
+git clone https://github.com/robertkarol/ComputationalAgentFramework
+cd ComputationalAgentFramework
+dotnet build
+```
+
+### Running the Examples
+
+```bash
+dotnet run --project Examples\Examples.csproj
+```
 
 ### Architecture
 
