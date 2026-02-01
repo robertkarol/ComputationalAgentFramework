@@ -10,7 +10,17 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Examples\**" />
+    <Compile Remove="ComputationalAgentFramework.Tests\**" />
     <EmbeddedResource Remove="Examples\**" />
+    <EmbeddedResource Remove="ComputationalAgentFramework.Tests\**" />
     <None Remove="Examples\**" />
+    <None Remove="ComputationalAgentFramework.Tests\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ComputationalAgentFramework.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".github\workflows\ci.yml" />
+    <None Include=".github\workflows\README.md" />
   </ItemGroup>
 </Project>

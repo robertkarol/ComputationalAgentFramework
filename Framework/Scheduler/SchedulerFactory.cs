@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ComputationalAgentFramework.Agent;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,6 +21,8 @@ namespace ComputationalAgentFramework.Framework.Scheduler
                     return new RunOnceScheduler();
                 case Schedule.RunIndefinitely:
                     return new RunIndefinitelyScheduler();
+                case Schedule.RunUntilStreamComplete:
+                    return new RunUntilStreamCompleteScheduler();
                 default:
                     throw new NotImplementedException();
             }

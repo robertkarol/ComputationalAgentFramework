@@ -11,12 +11,14 @@ namespace ComputationalAgentFramework.Framework
     public class Runner
     {
         private IDictionary<string, IComputationalAgent> _agents;
-
-        IEnumerable<TopologicalSort.Item> _agentsInExecutionOrder;
+        private HashSet<string> _executedBatchAgents;
+        private IEnumerable<TopologicalSort.Item> _agentsInExecutionOrder;
+        private StreamingCoordinator _streamingCoordinator;
 
         public Runner()
         {
             _agents = new Dictionary<string, IComputationalAgent>();
+            _executedBatchAgents = new HashSet<string>();
         }
 
         public void AddAgent(IComputationalAgent agent)
@@ -36,6 +38,8 @@ namespace ComputationalAgentFramework.Framework
             var scheduler = new SchedulerFactory().Create(schedule);
 
             _agentsInExecutionOrder = GetAgentExecutionOrder();
+            _executedBatchAgents.Clear();
+            _streamingCoordinator = new StreamingCoordinator(_agents);
 
             InitializeAgents();
             try
@@ -50,6 +54,13 @@ namespace ComputationalAgentFramework.Framework
                     if (scheduler.CanRun())
                     {
                         ExecuteAgents();
+                        
+                        // Notify scheduler about agent states (for RunUntilStreamComplete)
+                        if (scheduler is RunUntilStreamCompleteScheduler streamScheduler)
+                        {
+                            streamScheduler.NotifyEpochComplete(_agents.Values);
+                        }
+                        
                         scheduler.ThickEpoch();
                     }
                 }
@@ -77,14 +88,44 @@ namespace ComputationalAgentFramework.Framework
 
         private void ExecuteAgents()
         {
+            // Phase 1: Execute all batch agents first
+            ExecuteBatchAgents();
+            
+            // Phase 2: Execute streaming pipeline if there are streaming agents
+            if (_streamingCoordinator.HasActiveStreams())
+            {
+                ExecuteStreamingPipeline();
+            }
+        }
+
+        private void ExecuteBatchAgents()
+        {
             foreach (var agent in _agentsInExecutionOrder)
             {
                 if (string.IsNullOrEmpty(agent.Name))
                 {
                     continue;
                 }
-                var stateAgent = _agents[agent.Name] as ComputationalAgent;
                 
+                var stateAgent = _agents[agent.Name] as ComputationalAgent;
+                if (stateAgent == null)
+                {
+                    continue;
+                }
+                
+                // Skip streaming agents in batch phase
+                if (stateAgent is IStreamingAgent)
+                {
+                    continue;
+                }
+                
+                // Skip batch agents that have already executed
+                if (_executedBatchAgents.Contains(agent.Name))
+                {
+                    continue;
+                }
+                
+                // Handle multi-source agents
                 if (stateAgent is MultiSourceComputationalAgent multiSourceAgent)
                 {
                     var dataSources = GetDependantAgents(multiSourceAgent);
@@ -97,6 +138,7 @@ namespace ComputationalAgentFramework.Framework
                         }
                     }
                 }
+                // Handle regular single-source agents
                 else
                 {
                     var dataSourceAgent = GetDependantAgent(stateAgent) as ComputationalAgent;
@@ -104,6 +146,119 @@ namespace ComputationalAgentFramework.Framework
                 }
                 
                 stateAgent.Execute();
+                _executedBatchAgents.Add(agent.Name);
+            }
+        }
+
+        private void ExecuteStreamingPipeline()
+        {
+            _streamingCoordinator.Reset();
+
+            // Execute until all streams are complete
+            while (_streamingCoordinator.HasActiveStreams())
+            {
+                // Execute all stream producers
+                foreach (var producerName in _streamingCoordinator.GetStreamProducers())
+                {
+                    if (!_agents.TryGetValue(producerName, out var producer))
+                    {
+                        continue;
+                    }
+
+                    var streamProducer = producer as IStreamingAgent;
+                    if (streamProducer == null)
+                    {
+                        continue;
+                    }
+                    
+                    // Check completion before execution
+                    if (!streamProducer.HasMoreData)
+                    {
+                        if (!_streamingCoordinator.IsProducerComplete(producerName))
+                        {
+                            _streamingCoordinator.NotifyCompletion(producerName);
+                        }
+                        continue;
+                    }
+
+                    // Execute producer
+                    producer.Execute();
+                    
+                    // Only propagate if we actually produced data and still have more
+                    if (streamProducer.HasMoreData)
+                    {
+                        // Propagate data to consumers
+                        _streamingCoordinator.PropagateData(producerName);
+                        
+                        // Execute consumers
+                        ExecuteStreamConsumersFor(producerName);
+                    }
+                }
+
+                // Execute intermediate streaming consumers that may also be producers
+                foreach (var consumerName in _streamingCoordinator.GetStreamConsumers())
+                {
+                    if (!_agents.TryGetValue(consumerName, out var consumer))
+                    {
+                        continue;
+                    }
+
+                    var streamConsumer = consumer as IStreamingAgent;
+                    if (streamConsumer == null)
+                    {
+                        continue;
+                    }
+
+                    // Execute consumer (processes queued data)
+                    consumer.Execute();
+                    
+                    // If this consumer also produces data and has more, propagate it
+                    if (streamConsumer.HasMoreData)
+                    {
+                        _streamingCoordinator.PropagateData(consumerName);
+                        ExecuteStreamConsumersFor(consumerName);
+                    }
+                    
+                    // Check if complete
+                    if (!streamConsumer.HasMoreData && !_streamingCoordinator.IsProducerComplete(consumerName))
+                    {
+                        _streamingCoordinator.NotifyCompletion(consumerName);
+                    }
+                }
+            }
+        }
+
+        private void ExecuteStreamConsumersFor(string producerName)
+        {
+            // Get direct consumers of this producer
+            var producerType = _agents[producerName]?.GetType();
+            if (producerType == null)
+            {
+                return;
+            }
+
+            foreach (var agent in _agentsInExecutionOrder)
+            {
+                if (string.IsNullOrEmpty(agent.Name))
+                {
+                    continue;
+                }
+
+                var consumer = _agents[agent.Name];
+                if (consumer is not IStreamingAgent)
+                {
+                    continue;
+                }
+
+                // Check if this consumer depends on the producer
+                var attributes = consumer.GetType()
+                    .GetCustomAttributes(typeof(ConsumesFrom), true)
+                    .Cast<ConsumesFrom>();
+
+                if (attributes.Any(attr => attr.Producer == producerType))
+                {
+                    consumer.Execute();
+                }
             }
         }
 

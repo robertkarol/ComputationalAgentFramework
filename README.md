@@ -1,4 +1,8 @@
-# Computational Agent Framework (CAF)
+﻿# Computational Agent Framework (CAF)
+
+![CI](https://github.com/robertkarol/ComputationalAgentFramework/workflows/CI/badge.svg)
+![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)
+![.NET](https://img.shields.io/badge/.NET-10.0-blue)
 
 ## Overview
 
@@ -67,14 +71,53 @@ For agents consuming from multiple sources:
 - Type-safe data access via dictionary
 - Full backward compatibility
 
+
 ### Execution Model
 
-Agents are added to a `Runner` or `ParallelRunner` and executed using a scheduling strategy:
-- `Schedule.RunOnce`: Execute all agents once
-- `Schedule.RunIndefinitely`: Execute agents repeatedly
+Agents are added to a Runner or ParallelRunner and executed using a scheduling strategy:
+- Schedule.RunOnce: Execute all agents once
+- Schedule.RunIndefinitely: Execute agents repeatedly  
+- Schedule.RunUntilStreamComplete: Execute until all streaming agents complete
 
 Agent execution follows a dataflow pattern determined by topological sorting, ensuring each agent executes only after its dependencies have produced their data. Cycles in agent dependencies are not allowed.
 
+### Streaming Agents
+
+The framework supports streaming data processing with automatic coordination between producer and consumer agents.
+
+#### Streaming Agent Types
+
+Stream Producers:
+- Inherit from StreamProducerAgent<TProduced>
+- Implement GenerateStream() to yield data items
+- Framework automatically handles streaming lifecycle
+
+Stream Consumers:
+- Inherit from StreamConsumerAgent<TConsumed, TProduced>
+- Implement ConsumeStreamItem(TConsumed item) to process each item
+- Can also produce data for downstream consumers
+
+#### Automatic Streaming Coordination
+
+The framework automatically:
+- Identifies streaming vs batch agents
+- Executes batch agents once (output available to all stream iterations)
+- Coordinates data flow from producers to consumers
+- Handles multi-stage streaming pipelines
+- Propagates completion signals through the pipeline
+
+#### When to Use Streaming
+
+Use Streaming Agents When:
+- Processing large datasets that don't fit in memory
+- Real-time data processing (sensors, logs, events)
+- Incremental computation where results are needed per-item
+- Building ETL pipelines
+
+Use Batch Agents When:
+- All data available upfront
+- Single-pass computation
+- Configuration or setup logic
 ## Execution Engines
 
 ### Runner (Sequential Execution)

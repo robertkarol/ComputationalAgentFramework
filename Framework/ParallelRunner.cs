@@ -15,11 +15,14 @@ namespace ComputationalAgentFramework.Framework
         private IDictionary<string, IComputationalAgent> _agents;
         private IEnumerable<TopologicalSort.Item> _agentsInExecutionOrder;
         private IDictionary<string, List<string>> _dependencyGraph;
+        private ConcurrentDictionary<string, bool> _executedBatchAgents;
+        private StreamingCoordinator _streamingCoordinator;
 
         public ParallelRunner()
         {
             _agents = new Dictionary<string, IComputationalAgent>();
             _dependencyGraph = new Dictionary<string, List<string>>();
+            _executedBatchAgents = new ConcurrentDictionary<string, bool>();
         }
 
         public void AddAgent(IComputationalAgent agent)
@@ -40,6 +43,8 @@ namespace ComputationalAgentFramework.Framework
 
             _agentsInExecutionOrder = GetAgentExecutionOrder();
             BuildDependencyGraph();
+            _executedBatchAgents.Clear();
+            _streamingCoordinator = new StreamingCoordinator(_agents);
 
             InitializeAgents();
             try
@@ -53,7 +58,21 @@ namespace ComputationalAgentFramework.Framework
 
                     if (scheduler.CanRun())
                     {
-                        ExecuteAgentsInParallel();
+                        // Phase 1: Execute batch agents in parallel
+                        ExecuteBatchAgentsInParallel();
+                        
+                        // Phase 2: Execute streaming pipeline
+                        if (_streamingCoordinator.HasActiveStreams())
+                        {
+                            ExecuteStreamingPipeline();
+                        }
+                        
+                        // Notify scheduler about agent states (for RunUntilStreamComplete)
+                        if (scheduler is RunUntilStreamCompleteScheduler streamScheduler)
+                        {
+                            streamScheduler.NotifyEpochComplete(_agents.Values);
+                        }
+                        
                         scheduler.ThickEpoch();
                     }
                 }
@@ -94,17 +113,22 @@ namespace ComputationalAgentFramework.Framework
             });
         }
 
-        private void ExecuteAgentsInParallel()
+        private void ExecuteBatchAgentsInParallel()
         {
             var completedAgents = new ConcurrentDictionary<string, bool>();
             var agentData = new ConcurrentDictionary<string, object>();
-            var agentList = _agentsInExecutionOrder.Where(a => !string.IsNullOrEmpty(a.Name)).ToList();
+            var batchAgents = _agentsInExecutionOrder
+                .Where(a => !string.IsNullOrEmpty(a.Name))
+                .Where(a => !(_agents[a.Name] is IStreamingAgent))
+                .ToList();
 
-            while (completedAgents.Count < agentList.Count)
+            while (completedAgents.Count < batchAgents.Count)
             {
-                var readyAgents = agentList
+                var readyAgents = batchAgents
                     .Where(agent => !completedAgents.ContainsKey(agent.Name))
-                    .Where(agent => _dependencyGraph[agent.Name].All(dep => completedAgents.ContainsKey(dep)))
+                    .Where(agent => !_executedBatchAgents.ContainsKey(agent.Name))
+                    .Where(agent => _dependencyGraph[agent.Name].All(dep => 
+                        completedAgents.ContainsKey(dep) || (_agents[dep] is IStreamingAgent)))
                     .ToList();
 
                 if (readyAgents.Count == 0)
@@ -147,6 +171,80 @@ namespace ComputationalAgentFramework.Framework
                     }
 
                     completedAgents.TryAdd(agent.Name, true);
+                    _executedBatchAgents.TryAdd(agent.Name, true);
+                });
+            }
+        }
+
+        private void ExecuteStreamingPipeline()
+        {
+            _streamingCoordinator.Reset();
+
+            // Execute until all streams are complete
+            while (_streamingCoordinator.HasActiveStreams())
+            {
+                // Execute all stream producers
+                Parallel.ForEach(_streamingCoordinator.GetStreamProducers(), producerName =>
+                {
+                    if (!_agents.TryGetValue(producerName, out var producer))
+                    {
+                        return;
+                    }
+
+                    var streamProducer = producer as IStreamingAgent;
+                    if (streamProducer == null || !streamProducer.HasMoreData)
+                    {
+                        if (streamProducer != null && !_streamingCoordinator.IsProducerComplete(producerName))
+                        {
+                            _streamingCoordinator.NotifyCompletion(producerName);
+                        }
+                        return;
+                    }
+
+                    // Execute producer
+                    producer.Execute();
+                    
+                    // Propagate data to consumers (thread-safe)
+                    lock (_streamingCoordinator)
+                    {
+                        _streamingCoordinator.PropagateData(producerName);
+                    }
+                });
+
+                // Execute streaming consumers
+                Parallel.ForEach(_streamingCoordinator.GetStreamConsumers(), consumerName =>
+                {
+                    if (!_agents.TryGetValue(consumerName, out var consumer))
+                    {
+                        return;
+                    }
+
+                    var streamConsumer = consumer as IStreamingAgent;
+                    if (streamConsumer == null)
+                    {
+                        return;
+                    }
+
+                    // Execute consumer (processes queued data)
+                    consumer.Execute();
+                    
+                    // If this consumer also produces data, propagate it
+                    lock (_streamingCoordinator)
+                    {
+                        _streamingCoordinator.PropagateData(consumerName);
+                    }
+                    
+                    // Check if complete
+                    if (!streamConsumer.HasMoreData && !_streamingCoordinator.IsProducerComplete(consumerName))
+                    {
+                        lock (_streamingCoordinator)
+                        {
+                            if (!_streamingCoordinator.IsProducerComplete(consumerName))
+                            {
+                                _streamingCoordinator.NotifyCompletion(consumerName);
+                            }
+                        }
+                    }
                 });
             }
         }
