@@ -29,6 +29,9 @@ namespace Examples
 
             // Multi-source demo
             MultiSourceDemo.RunDemo();
+
+            // Multiple instances demo
+            MultipleInstancesDemo.RunDemo();
         }
     }
 }

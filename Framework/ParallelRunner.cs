@@ -27,13 +27,6 @@ namespace ComputationalAgentFramework.Framework
 
         public void AddAgent(IComputationalAgent agent)
         {
-            foreach (var agentValue in _agents.Values)
-            {
-                if (agent.GetType() == agentValue.GetType())
-                {
-                    throw new ArgumentException("Only one agent instance is currently supported");
-                }
-            }
             _agents.Add(agent.ToString(), agent);
         }
 
@@ -268,7 +261,21 @@ namespace ComputationalAgentFramework.Framework
         private IComputationalAgent GetDependantAgent(IStateMachineAgent agent)
         {
             var attribute = agent.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).FirstOrDefault() as ConsumesFrom;
-            return _agents.Values.Where(a => a.GetType() == attribute?.Producer).FirstOrDefault();
+            if (attribute == null)
+            {
+                return null;
+            }
+
+            // If specific instance name is specified, find by name
+            if (!string.IsNullOrEmpty(attribute.ProducerName))
+            {
+                return _agents.Values.FirstOrDefault(a => 
+                    a.GetType() == attribute.Producer && 
+                    a.ToString() == attribute.ProducerName);
+            }
+
+            // Otherwise, find by type (backward compatible)
+            return _agents.Values.FirstOrDefault(a => a.GetType() == attribute.Producer);
         }
 
         private IEnumerable<IComputationalAgent> GetDependantAgents(IStateMachineAgent agent)
@@ -276,7 +283,21 @@ namespace ComputationalAgentFramework.Framework
             var attributes = agent.GetType().GetCustomAttributes(typeof(ConsumesFrom), true).Cast<ConsumesFrom>();
             foreach (var attribute in attributes)
             {
-                var producer = _agents.Values.FirstOrDefault(a => a.GetType() == attribute.Producer);
+                IComputationalAgent producer;
+
+                // If specific instance name is specified, find by name
+                if (!string.IsNullOrEmpty(attribute.ProducerName))
+                {
+                    producer = _agents.Values.FirstOrDefault(a => 
+                        a.GetType() == attribute.Producer && 
+                        a.ToString() == attribute.ProducerName);
+                }
+                else
+                {
+                    // Otherwise, find by type (backward compatible)
+                    producer = _agents.Values.FirstOrDefault(a => a.GetType() == attribute.Producer);
+                }
+
                 if (producer != null)
                 {
                     yield return producer;

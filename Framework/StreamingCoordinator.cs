@@ -72,7 +72,21 @@ namespace ComputationalAgentFramework.Framework
 
             foreach (var attr in attributes)
             {
-                var producer = _agents.Values.FirstOrDefault(a => a.GetType() == attr.Producer);
+                IComputationalAgent producer;
+
+                // If specific instance name is specified, find by name
+                if (!string.IsNullOrEmpty(attr.ProducerName))
+                {
+                    producer = _agents.Values.FirstOrDefault(a => 
+                        a.GetType() == attr.Producer && 
+                        a.ToString() == attr.ProducerName);
+                }
+                else
+                {
+                    // Otherwise, find by type
+                    producer = _agents.Values.FirstOrDefault(a => a.GetType() == attr.Producer);
+                }
+
                 if (producer is IStreamingAgent)
                 {
                     return true;
@@ -90,6 +104,7 @@ namespace ComputationalAgentFramework.Framework
             }
 
             var producerType = producer.GetType();
+            var producerInstanceName = producer.ToString();
 
             foreach (var agent in _agents.Values)
             {
@@ -97,9 +112,25 @@ namespace ComputationalAgentFramework.Framework
                     .GetCustomAttributes(typeof(Utils.ConsumesFrom), true)
                     .Cast<Utils.ConsumesFrom>();
 
-                if (attributes.Any(attr => attr.Producer == producerType))
+                foreach (var attr in attributes)
                 {
-                    yield return agent.ToString();
+                    // Check if this attribute matches our producer
+                    if (attr.Producer == producerType)
+                    {
+                        // If ProducerName is specified, must match
+                        if (!string.IsNullOrEmpty(attr.ProducerName))
+                        {
+                            if (attr.ProducerName == producerInstanceName)
+                            {
+                                yield return agent.ToString();
+                            }
+                        }
+                        else
+                        {
+                            // No ProducerName specified, match by type (backward compatible)
+                            yield return agent.ToString();
+                        }
+                    }
                 }
             }
         }

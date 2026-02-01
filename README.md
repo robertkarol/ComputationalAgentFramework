@@ -1,7 +1,7 @@
 ﻿# Computational Agent Framework (CAF)
 
 ![CI](https://github.com/robertkarol/ComputationalAgentFramework/workflows/CI/badge.svg)
-![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-74%20passing-brightgreen)
 ![.NET](https://img.shields.io/badge/.NET-10.0-blue)
 
 ## Overview
@@ -351,7 +351,7 @@ Both runners use:
 - Multi-source agents access data by producer type (cannot distinguish multiple instances of same type)
 - No control over state transitioning
 - No dynamic reconfiguration
-- Only one instance of each concrete agent type is allowed
+- MultiSourceComputationalAgent uses Type-keyed dictionary (cannot distinguish multiple instances of same type)
 - Cycles in agent linking are not allowed
 
 ## Examples
