@@ -9,6 +9,7 @@ namespace ComputationalAgentFramework.Framework.Scheduler
     public enum Schedule
     {
         RunOnce,
-        RunIndefinitely
+        RunIndefinitely,
+        RunUntilStreamComplete
     }
 }
