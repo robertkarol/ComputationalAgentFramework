@@ -22,7 +22,7 @@ namespace ComputationalAgentFramework.Tests.Unit
         }
 
         [Fact]
-        public void AddAgent_WithDuplicateType_ShouldThrowArgumentException()
+        public void AddAgent_WithMultipleInstancesOfSameType_ShouldAllowThem()
         {
             // Arrange
             var runner = new Runner();
@@ -31,9 +31,10 @@ namespace ComputationalAgentFramework.Tests.Unit
 
             // Act
             runner.AddAgent(agent1);
+            var exception = Record.Exception(() => runner.AddAgent(agent2));
 
-            // Assert
-            Assert.Throws<ArgumentException>(() => runner.AddAgent(agent2));
+            // Assert - Should now allow multiple instances
+            Assert.Null(exception);
         }
 
         [Fact]
