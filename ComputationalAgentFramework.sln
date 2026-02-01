@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComputationalAgentFramework
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Examples", "Examples\Examples.csproj", "{3FC3CF84-02E7-4F21-B6A3-15735E71F4AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComputationalAgentFramework.Tests", "..\ComputationalAgentFramework.Tests\ComputationalAgentFramework.Tests.csproj", "{FF04BD68-0819-42C3-9852-5E922FC6BF0C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComputationalAgentFramework.Tests", "ComputationalAgentFramework.Tests\ComputationalAgentFramework.Tests.csproj", "{FF04BD68-0819-42C3-9852-5E922FC6BF0C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,3 +35,4 @@ Global
 		SolutionGuid = {9B035454-055F-45A7-8245-E0FB05674442}
 	EndGlobalSection
 EndGlobal
+
