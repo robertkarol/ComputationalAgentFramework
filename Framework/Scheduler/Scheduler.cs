@@ -10,7 +10,7 @@ namespace ComputationalAgentFramework.Framework.Scheduler
     {
         bool CanRun();
 
-        void ThickEpoch();
+        void TickEpoch();
 
         bool HasMoreEpochsToRun();
     }

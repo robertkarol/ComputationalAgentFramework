@@ -12,6 +12,6 @@ namespace ComputationalAgentFramework.Framework.Scheduler
 
         public bool HasMoreEpochsToRun() => true;
 
-        public void ThickEpoch() { }
+        public void TickEpoch() { }
     }
 }

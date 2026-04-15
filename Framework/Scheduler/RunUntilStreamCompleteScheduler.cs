@@ -26,7 +26,7 @@ namespace ComputationalAgentFramework.Framework.Scheduler
             return !_streamComplete;
         }
 
-        public void ThickEpoch()
+        public void TickEpoch()
         {
         }
 

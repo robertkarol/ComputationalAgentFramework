@@ -20,13 +20,13 @@ namespace ComputationalAgentFramework.Tests.Unit
         }
 
         [Fact]
-        public void RunOnceScheduler_AfterThickEpoch_ShouldReturnFalse()
+        public void RunOnceScheduler_AfterTickEpoch_ShouldReturnFalse()
         {
             // Arrange
             var scheduler = new RunOnceScheduler();
 
             // Act
-            scheduler.ThickEpoch();
+            scheduler.TickEpoch();
             var result = scheduler.HasMoreEpochsToRun();
 
             // Assert
@@ -41,7 +41,7 @@ namespace ComputationalAgentFramework.Tests.Unit
 
             // Act & Assert
             Assert.True(scheduler.CanRun());
-            scheduler.ThickEpoch();
+            scheduler.TickEpoch();
             Assert.True(scheduler.CanRun());
         }
 
