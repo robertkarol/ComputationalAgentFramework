@@ -1,5 +1,6 @@
 using ComputationalAgentFramework.Agent;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,7 +16,7 @@ namespace ComputationalAgentFramework.Framework
         private readonly HashSet<string> _streamProducers;
         private readonly HashSet<string> _streamConsumers;
         private readonly Dictionary<string, HashSet<string>> _producerToConsumers;
-        private readonly HashSet<string> _completedProducers;
+        private readonly ConcurrentDictionary<string, byte> _completedProducers;
 
         public StreamingCoordinator(IDictionary<string, IComputationalAgent> agents)
         {
@@ -23,7 +24,7 @@ namespace ComputationalAgentFramework.Framework
             _streamProducers = new HashSet<string>();
             _streamConsumers = new HashSet<string>();
             _producerToConsumers = new Dictionary<string, HashSet<string>>();
-            _completedProducers = new HashSet<string>();
+            _completedProducers = new ConcurrentDictionary<string, byte>();
             
             AnalyzeStreamingTopology();
         }
@@ -210,12 +211,10 @@ namespace ComputationalAgentFramework.Framework
 
         public void NotifyCompletion(string producerName)
         {
-            if (_completedProducers.Contains(producerName))
+            if (!_completedProducers.TryAdd(producerName, 0))
             {
                 return;
             }
-
-            _completedProducers.Add(producerName);
 
             // Notify all downstream consumers
             if (!_producerToConsumers.TryGetValue(producerName, out var consumerNames))
@@ -235,7 +234,7 @@ namespace ComputationalAgentFramework.Framework
 
         public bool IsProducerComplete(string agentName)
         {
-            return _completedProducers.Contains(agentName);
+            return _completedProducers.ContainsKey(agentName);
         }
 
         public void Reset()

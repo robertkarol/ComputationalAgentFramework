@@ -7,7 +7,7 @@ namespace ComputationalAgentFramework.Agent
 {
     public abstract class StreamingAgent : ComputationalAgent, IStreamingAgent
     {
-        private bool _streamComplete;
+        private volatile bool _streamComplete;
 
         public bool HasMoreData => !_streamComplete;
 
@@ -90,7 +90,7 @@ namespace ComputationalAgentFramework.Agent
     {
         private string _name;
         private ConcurrentQueue<TConsumed> _streamQueue;
-        private bool _producerComplete;
+        private volatile bool _producerComplete;
 
         public StreamConsumerAgent(string name)
         {
